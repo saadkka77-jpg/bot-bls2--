@@ -1,10 +1,8 @@
 import discord
-from discord.ext import commands, tasks
-from discord.ui import View, Modal, TextInput
+from discord.ext import commands
 import datetime
 import json
 import os
-import asyncio
 
 from flask import Flask
 from threading import Thread
@@ -42,13 +40,13 @@ bot = commands.Bot(
 # IDS
 # =========================
 
-LEAVE_CHANNEL = 1490070238270718013
-LEAVE_LOG = 1490820000477610036
-
 POINT_CHANNEL = 1497204458680090779
-RESET_CHANNEL = 1497642199859593388
+TOP_CHANNEL = 1497642199859593388
 
-LEAVE_ROLE = 1492607429249339502
+POINT_ROLES = [
+1482194383515422752,
+1480443913557905499
+]
 
 ALLOWED_ROLES = [
 1478970736717598840,
@@ -57,16 +55,10 @@ ALLOWED_ROLES = [
 1478971845729583276
 ]
 
-POINT_ROLES = [
-1482194383515422752,
-1480443913557905499
-]
-
 # =========================
-# FILES
+# FILE
 # =========================
 
-LEAVE_FILE = "leaves.json"
 POINT_FILE = "points.json"
 DOUBLE_FILE = "double.json"
 
@@ -161,7 +153,7 @@ async def on_voice_state_update(member, before, after):
             del voice_times[uid]
 
 # =========================
-# عرض النقاط
+# عرض نقاطك
 # =========================
 
 @bot.command(name="تفاعل")
@@ -169,8 +161,6 @@ async def show_points(ctx):
 
     if ctx.channel.id != POINT_CHANNEL:
         return
-
-    await ctx.message.delete()
 
     points = load_json(POINT_FILE)
 
@@ -185,43 +175,77 @@ async def show_points(ctx):
 
     embed.add_field(
         name="المستخدم",
-        value=ctx.author.mention
+        value=ctx.author.mention,
+        inline=False
     )
 
     embed.add_field(
         name="مجموع النقاط",
-        value=f"{total} نقطة"
+        value=f"{total} نقطة",
+        inline=False
     )
 
     embed.timestamp = datetime.datetime.utcnow()
 
-    msg = await ctx.send(embed=embed)
-
-    await asyncio.sleep(10)
-
-    await msg.delete()
+    await ctx.send(embed=embed)
 
 # =========================
-# تصفير نقاط
+# TOP 3
+# =========================
+
+@bot.command(name="top")
+async def top_points(ctx):
+
+    if ctx.channel.id != TOP_CHANNEL:
+        return
+
+    points = load_json(POINT_FILE)
+
+    sorted_points = sorted(
+        points.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )
+
+    medals = ["🥇", "🥈", "🥉"]
+
+    desc = ""
+
+    for i, (uid, pts) in enumerate(sorted_points[:3]):
+
+        member = ctx.guild.get_member(int(uid))
+
+        if member:
+
+            desc += (
+                f"{medals[i]} "
+                f"{member.mention} — "
+                f"{pts} نقطة\n"
+            )
+
+    embed = discord.Embed(
+        title="🏆 أعلى المتفاعلين",
+        description=desc,
+        color=discord.Color.gold()
+    )
+
+    embed.timestamp = datetime.datetime.utcnow()
+
+    await ctx.send(embed=embed)
+
+# =========================
+# تصفير نقاط شخص
 # =========================
 
 @bot.command(name="تصفير")
 async def reset_points(ctx, member: discord.Member):
 
-    if ctx.channel.id != RESET_CHANNEL:
+    if ctx.channel.id != TOP_CHANNEL:
         return
-
-    await ctx.message.delete()
 
     if not any(r.id in ALLOWED_ROLES for r in ctx.author.roles):
 
-        msg = await ctx.send(
-            "❌ لا يسمح لك باستخدام الامر"
-        )
-
-        await asyncio.sleep(5)
-        await msg.delete()
-
+        await ctx.send("❌ لا يسمح لك باستخدام الامر")
         return
 
     points = load_json(POINT_FILE)
@@ -230,12 +254,13 @@ async def reset_points(ctx, member: discord.Member):
 
     save_json(POINT_FILE, points)
 
-    msg = await ctx.send(
-        f"✅ تم تصفير نقاط {member.mention}"
+    embed = discord.Embed(
+        title="🧹 تصفير النقاط",
+        description=f"تم تصفير نقاط {member.mention}",
+        color=discord.Color.red()
     )
 
-    await asyncio.sleep(5)
-    await msg.delete()
+    await ctx.send(embed=embed)
 
 # =========================
 # إضافة نقاط
@@ -244,20 +269,12 @@ async def reset_points(ctx, member: discord.Member):
 @bot.command(name="اضف")
 async def add_points(ctx, member: discord.Member, amount: int):
 
-    if ctx.channel.id != RESET_CHANNEL:
+    if ctx.channel.id != TOP_CHANNEL:
         return
-
-    await ctx.message.delete()
 
     if not any(r.id in ALLOWED_ROLES for r in ctx.author.roles):
 
-        msg = await ctx.send(
-            "❌ لا يسمح لك باستخدام الامر"
-        )
-
-        await asyncio.sleep(5)
-        await msg.delete()
-
+        await ctx.send("❌ لا يسمح لك باستخدام الامر")
         return
 
     points = load_json(POINT_FILE)
@@ -268,210 +285,56 @@ async def add_points(ctx, member: discord.Member, amount: int):
 
     save_json(POINT_FILE, points)
 
-    msg = await ctx.send(
-        f"➕ تم إضافة {amount} نقطة إلى {member.mention}"
+    embed = discord.Embed(
+        title="➕ إضافة نقاط",
+        description=f"تم إضافة {amount} نقطة إلى {member.mention}",
+        color=discord.Color.green()
     )
 
-    await asyncio.sleep(5)
-    await msg.delete()
+    await ctx.send(embed=embed)
 
 # =========================
-# دبل تفاعل
+# تصفير الجميع
+# =========================
+
+@bot.command(name="resetall")
+async def reset_all(ctx):
+
+    if ctx.channel.id != TOP_CHANNEL:
+        return
+
+    if not any(r.id in ALLOWED_ROLES for r in ctx.author.roles):
+
+        await ctx.send("❌ لا يسمح لك باستخدام الامر")
+        return
+
+    save_json(POINT_FILE, {})
+
+    embed = discord.Embed(
+        title="🧹 تصفير شامل",
+        description="تم تصفير جميع النقاط",
+        color=discord.Color.red()
+    )
+
+    await ctx.send(embed=embed)
+
+# =========================
+# دبل
 # =========================
 
 @bot.command()
 async def double(ctx):
 
-    await ctx.message.delete()
+    save_json(DOUBLE_FILE, {"active": True})
 
-    double = {"active": True}
-
-    save_json(DOUBLE_FILE, double)
-
-    msg = await ctx.send(
-        "🔥 تم تفعيل الدبل"
-    )
-
-    await asyncio.sleep(5)
-    await msg.delete()
+    await ctx.send("🔥 تم تفعيل الدبل")
 
 @bot.command()
 async def doubleoff(ctx):
 
-    await ctx.message.delete()
+    save_json(DOUBLE_FILE, {"active": False})
 
-    double = {"active": False}
-
-    save_json(DOUBLE_FILE, double)
-
-    msg = await ctx.send(
-        "❄️ تم إيقاف الدبل"
-    )
-
-    await asyncio.sleep(5)
-    await msg.delete()
-
-# =========================
-# لوحة الإجازات
-# =========================
-
-class LeaveModal(Modal, title="طلب إجازة"):
-
-    reason = TextInput(label="سبب الإجازة")
-
-    days = TextInput(label="عدد الأيام")
-
-    async def on_submit(self, interaction):
-
-        try:
-            days = int(self.days.value)
-        except:
-
-            await interaction.response.send_message(
-                "❌ اكتب رقم صحيح",
-                ephemeral=True
-            )
-            return
-
-        if days < 3:
-
-            await interaction.response.send_message(
-                "❌ أقل مدة 3 أيام",
-                ephemeral=True
-            )
-            return
-
-        leaves = load_json(LEAVE_FILE)
-
-        start = datetime.datetime.utcnow()
-        end = start + datetime.timedelta(days=days)
-
-        leaves[str(interaction.user.id)] = {
-
-            "end": end.timestamp()
-
-        }
-
-        save_json(LEAVE_FILE, leaves)
-
-        role = interaction.guild.get_role(
-            LEAVE_ROLE
-        )
-
-        if role:
-            await interaction.user.add_roles(role)
-
-        log = bot.get_channel(
-            LEAVE_LOG
-        )
-
-        if log:
-
-            embed = discord.Embed(
-                title="📩 طلب إجازة",
-                color=discord.Color.green()
-            )
-
-            embed.add_field(
-                name="المستخدم",
-                value=interaction.user.mention
-            )
-
-            embed.add_field(
-                name="المدة",
-                value=f"{days} يوم"
-            )
-
-            embed.timestamp = datetime.datetime.utcnow()
-
-            await log.send(embed=embed)
-
-        await interaction.response.send_message(
-            "✅ تم تسجيل الإجازة",
-            ephemeral=True
-        )
-
-class LeaveView(View):
-
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(
-        label="طلب إجازة",
-        style=discord.ButtonStyle.green
-    )
-    async def request_leave(
-        self, interaction, button
-    ):
-
-        await interaction.response.send_modal(
-            LeaveModal()
-        )
-
-@bot.command()
-async def leavepanel(ctx):
-
-    if ctx.channel.id != LEAVE_CHANNEL:
-        return
-
-    await ctx.message.delete()
-
-    embed = discord.Embed(
-        title="📅 نظام الإجازات",
-        description="سحب الإجازة بعد 24 ساعة ممنوع",
-        color=discord.Color.blue()
-    )
-
-    await ctx.send(
-        embed=embed,
-        view=LeaveView()
-    )
-
-# =========================
-# انتهاء الاجازات
-# =========================
-
-@tasks.loop(minutes=1)
-async def check_leave():
-
-    leaves = load_json(LEAVE_FILE)
-
-    now = datetime.datetime.utcnow()
-
-    if not bot.guilds:
-        return
-
-    guild = bot.guilds[0]
-
-    for uid in list(leaves.keys()):
-
-        end = datetime.datetime.fromtimestamp(
-            leaves[uid]["end"]
-        )
-
-        if now >= end:
-
-            member = guild.get_member(int(uid))
-
-            if member:
-
-                role = guild.get_role(
-                    LEAVE_ROLE
-                )
-
-                if role:
-                    await member.remove_roles(role)
-
-                try:
-                    await member.send(
-                        "انتهت الاجازه الخاصه بك"
-                    )
-                except:
-                    pass
-
-            del leaves[uid]
-
-    save_json(LEAVE_FILE, leaves)
+    await ctx.send("❄️ تم إيقاف الدبل")
 
 # =========================
 # READY
@@ -481,10 +344,6 @@ async def check_leave():
 async def on_ready():
 
     print(f"✅ Logged in as {bot.user}")
-
-    check_leave.start()
-
-    bot.add_view(LeaveView())
 
 # =========================
 # START
