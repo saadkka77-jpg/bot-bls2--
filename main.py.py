@@ -56,7 +56,7 @@ ALLOWED_ROLES = [
 ]
 
 # =========================
-# FILE
+# FILES
 # =========================
 
 POINT_FILE = "points.json"
@@ -86,6 +86,7 @@ async def on_message(message):
     if message.author.bot:
         return
 
+    # إضافة نقاط فقط لرتب محددة
     if any(r.id in POINT_ROLES for r in message.author.roles):
 
         points = load_json(POINT_FILE)
@@ -102,6 +103,7 @@ async def on_message(message):
 
         save_json(POINT_FILE, points)
 
+    # مهم جداً لتجنب التكرار
     await bot.process_commands(message)
 
 # =========================
@@ -200,6 +202,10 @@ async def top_points(ctx):
         return
 
     points = load_json(POINT_FILE)
+
+    if not points:
+        await ctx.send("لا يوجد نقاط حالياً")
+        return
 
     sorted_points = sorted(
         points.items(),
