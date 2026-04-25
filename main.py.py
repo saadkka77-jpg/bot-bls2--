@@ -30,8 +30,6 @@ def keep_alive():
 # BOT
 # =========================
 
-TOKEN = os.getenv("TOKEN")
-
 intents = discord.Intents.all()
 intents.message_content = True
 
@@ -138,35 +136,38 @@ class LeaveModal(Modal, title="طلب إجازة"):
             LEAVE_ROLE
         )
 
-        await interaction.user.add_roles(role)
+        if role:
+            await interaction.user.add_roles(role)
 
         log = bot.get_channel(
             LEAVE_LOG
         )
 
-        embed = discord.Embed(
-            title="📩 طلب إجازة",
-            color=discord.Color.green()
-        )
+        if log:
 
-        embed.add_field(
-            name="المستخدم",
-            value=interaction.user.mention
-        )
+            embed = discord.Embed(
+                title="📩 طلب إجازة",
+                color=discord.Color.green()
+            )
 
-        embed.add_field(
-            name="المدة",
-            value=f"{days} يوم"
-        )
+            embed.add_field(
+                name="المستخدم",
+                value=interaction.user.mention
+            )
 
-        embed.add_field(
-            name="السبب",
-            value=self.reason.value
-        )
+            embed.add_field(
+                name="المدة",
+                value=f"{days} يوم"
+            )
 
-        embed.timestamp = datetime.datetime.utcnow()
+            embed.add_field(
+                name="السبب",
+                value=self.reason.value
+            )
 
-        await log.send(embed=embed)
+            embed.timestamp = datetime.datetime.utcnow()
+
+            await log.send(embed=embed)
 
         await interaction.response.send_message(
             "✅ تم تسجيل الإجازة",
@@ -234,9 +235,10 @@ class WithdrawModal(Modal, title="سحب إجازة"):
                 WARN_ROLE1
             )
 
-            await interaction.user.add_roles(
-                role_warn
-            )
+            if role_warn:
+                await interaction.user.add_roles(
+                    role_warn
+                )
 
         del leaves[uid]
 
@@ -246,16 +248,18 @@ class WithdrawModal(Modal, title="سحب إجازة"):
             LEAVE_ROLE
         )
 
-        await interaction.user.remove_roles(role)
+        if role:
+            await interaction.user.remove_roles(role)
 
         log = bot.get_channel(
             LEAVE_LOG
         )
 
-        await log.send(
-            f"❌ تم سحب إجازة {interaction.user.mention}\n"
-            f"📝 السبب: {self.reason.value}"
-        )
+        if log:
+            await log.send(
+                f"❌ تم سحب إجازة {interaction.user.mention}\n"
+                f"📝 السبب: {self.reason.value}"
+            )
 
         await interaction.response.send_message(
             "✅ تم سحب الإجازة",
@@ -354,7 +358,8 @@ async def warn(ctx, member: discord.Member):
 
         text = "انذار اول"
 
-    await member.add_roles(role)
+    if role:
+        await member.add_roles(role)
 
     warns[str(member.id)] = {
 
@@ -381,10 +386,15 @@ async def warn(ctx, member: discord.Member):
 @tasks.loop(minutes=1)
 async def check_system():
 
+    await bot.wait_until_ready()
+
     leaves = load_json(LEAVE_FILE)
     warns = load_json(WARN_FILE)
 
     now = datetime.datetime.utcnow()
+
+    if not bot.guilds:
+        return
 
     guild = bot.guilds[0]
 
@@ -406,14 +416,13 @@ async def check_system():
                     LEAVE_ROLE
                 )
 
-                await member.remove_roles(role)
+                if role:
+                    await member.remove_roles(role)
 
                 try:
-
                     await member.send(
                         "انتهت الاجازه الخاصه بك"
                     )
-
                 except:
                     pass
 
@@ -438,16 +447,20 @@ async def check_system():
                 r1 = guild.get_role(WARN_ROLE1)
                 r2 = guild.get_role(WARN_ROLE2)
 
-                await member.remove_roles(r1)
-                await member.remove_roles(r2)
+                if r1:
+                    await member.remove_roles(r1)
+
+                if r2:
+                    await member.remove_roles(r2)
 
                 ch = bot.get_channel(
                     WARN_CHANNEL
                 )
 
-                await ch.send(
-                    f"تم سحب الانذار {member.mention}"
-                )
+                if ch:
+                    await ch.send(
+                        f"تم سحب الانذار {member.mention}"
+                    )
 
             del warns[uid]
 
@@ -460,9 +473,10 @@ async def check_system():
 @bot.event
 async def on_ready():
 
-    print(f"Logged in as {bot.user}")
+    print(f"✅ Logged in as {bot.user}")
 
-    check_system.start()
+    if not check_system.is_running():
+        check_system.start()
 
     bot.add_view(LeaveView())
 
@@ -472,4 +486,9 @@ async def on_ready():
 
 keep_alive()
 
-bot.run("DISCORD_TOKEN")
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+
+if DISCORD_TOKEN:
+    bot.run(DISCORD_TOKEN)
+else:
+    print("❌ لم يتم العثور على DISCORD_TOKEN")
