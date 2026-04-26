@@ -43,6 +43,9 @@ bot = commands.Bot(
 POINT_CHANNEL = 1497204458680090779
 TOP_CHANNEL = 1497642199859593388
 
+# روم الكلمات الجديدة
+KEYWORD_CHANNEL = 1497911384191668254
+
 POINT_ROLES = [
 1482194383515422752,
 1480443913557905499
@@ -77,7 +80,7 @@ def save_json(file, data):
         json.dump(data, f, indent=4)
 
 # =========================
-# نقاط الكتابة
+# نقاط الكتابة + كلمات صوره وتكت
 # =========================
 
 @bot.event
@@ -86,13 +89,16 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # إضافة نقاط فقط لرتب محددة
+    points = load_json(POINT_FILE)
+    double = load_json(DOUBLE_FILE)
+
+    uid = str(message.author.id)
+
+    # =====================
+    # نقاط الكتابة العادية
+    # =====================
+
     if any(r.id in POINT_ROLES for r in message.author.roles):
-
-        points = load_json(POINT_FILE)
-        double = load_json(DOUBLE_FILE)
-
-        uid = str(message.author.id)
 
         add = 2
 
@@ -103,7 +109,58 @@ async def on_message(message):
 
         save_json(POINT_FILE, points)
 
-    # مهم جداً لتجنب التكرار
+    # =====================
+    # كلمات صوره وتكت
+    # =====================
+
+    if message.channel.id == KEYWORD_CHANNEL:
+
+        text = message.content.lower()
+
+        if "صوره" in text:
+
+            points[uid] = points.get(uid, 0) + 10
+
+            save_json(POINT_FILE, points)
+
+            total = points.get(uid, 0)
+
+            embed = discord.Embed(
+                title="📸 إضافة نقاط",
+                description=(
+                    f"تم إضافة **10 نقاط** إلى {message.author.mention}\n\n"
+                    f"📊 مجموع نقاطك الآن:\n"
+                    f"**{total} نقطة**"
+                ),
+                color=discord.Color.green()
+            )
+
+            embed.timestamp = datetime.datetime.utcnow()
+
+            await message.channel.send(embed=embed)
+
+        elif "تكت" in text:
+
+            points[uid] = points.get(uid, 0) + 25
+
+            save_json(POINT_FILE, points)
+
+            total = points.get(uid, 0)
+
+            embed = discord.Embed(
+                title="🎫 إضافة نقاط",
+                description=(
+                    f"تم إضافة **25 نقطة** إلى {message.author.mention}\n\n"
+                    f"📊 مجموع نقاطك الآن:\n"
+                    f"**{total} نقطة**"
+                ),
+                color=discord.Color.green()
+            )
+
+            embed.timestamp = datetime.datetime.utcnow()
+
+            await message.channel.send(embed=embed)
+
     await bot.process_commands(message)
 
 # =========================
